@@ -80,7 +80,7 @@ app.get("/", (req, res) => {
 });
 
 // -------- SERVER FIX --------
-const PORT = Number(process.env.PORT || 4000);
+const PORT = Number(process.env.PORT);
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);

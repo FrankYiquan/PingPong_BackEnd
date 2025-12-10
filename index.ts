@@ -11,7 +11,6 @@ import { createMatchRouter } from "./routes/matchRoutes";
 import { Notifier } from "./matchmaking/notifier";
 import { createUserRouter } from "./routes/userRoutes";
 
-// ---------- EXPRESS SETUP ----------
 const app = express();
 
 app.use(
@@ -24,16 +23,16 @@ app.use(
 
 app.use(express.json());
 
-// ---------- DATABASE ----------
+// -------- DATABASE FIX --------
 mongoose
-  .connect(process.env.MONGO_URI!)
+  .connect(process.env.MONGO_URI || process.env.MONGODB_URI!)
   .then(() => console.log("MongoDB connected"))
   .catch(console.error);
 
-// ---------- REDIS TEST ----------
+// -------- REDIS TEST --------
 redis.ping().then((res) => console.log("Redis:", res));
 
-// ---------- SOCKET.IO ----------
+// -------- SOCKET.IO ----------
 const server = http.createServer(app);
 
 const io = new SocketIOServer(server, {
@@ -41,7 +40,6 @@ const io = new SocketIOServer(server, {
     origin: "*",
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
   },
 });
 
@@ -52,33 +50,28 @@ io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
   socket.on("register", (userId: string) => {
-    console.log("Registered user:", userId);
     userSockets.set(userId, socket.id);
   });
 
   socket.on("disconnect", () => {
     for (const [userId, sockId] of userSockets.entries()) {
-      if (sockId === socket.id) {
-        userSockets.delete(userId);
-        break;
-      }
+      if (sockId === socket.id) userSockets.delete(userId);
     }
   });
 });
 
-// ---------- NOTIFIER ----------
+// -------- NOTIFIER ----------
 const notifier: Notifier = {
   async notifyUser(userId, event, payload) {
     const socketId = userSockets.get(userId);
-    if (!socketId) return;
-    io.to(socketId).emit(event, payload);
+    if (socketId) io.to(socketId).emit(event, payload);
   },
 };
 
-// ---------- MATCH ENGINE ----------
+// -------- MATCH ENGINE ----------
 startMatchEngine(notifier, 1000);
 
-// ---------- ROUTES ----------
+// -------- ROUTES ----------
 app.use("/match", createMatchRouter(notifier));
 app.use("/user", createUserRouter());
 
@@ -86,10 +79,9 @@ app.get("/", (req, res) => {
   res.send("Matchmaking API is running");
 });
 
-// ---------- START SERVER ----------
-const PORT: number = Number(process.env.PORT) || 8080;
+// -------- SERVER FIX --------
+const PORT = Number(process.env.PORT || 4000);
 
-// 2. Now 'PORT' is guaranteed to be a number, so TypeScript is happy.
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
 });

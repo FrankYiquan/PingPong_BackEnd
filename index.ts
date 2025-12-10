@@ -87,9 +87,9 @@ app.get("/", (req, res) => {
 });
 
 // ---------- START SERVER ----------
-const PORT = process.env.PORT || 4000;
+const PORT: number = Number(process.env.PORT) || 8080;
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// 2. Now 'PORT' is guaranteed to be a number, so TypeScript is happy.
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
 });
-//

@@ -3,17 +3,25 @@ import express from "express";
 import http from "http";
 import mongoose from "mongoose";
 import { Server as SocketIOServer } from "socket.io";
+import cors from "cors";
 
-import { redis } from "./redis/redisClient"; // shared redis instance
-import { startMatchEngine } from "./matchmaking/matchEngine"; 
+import { redis } from "./redis/redisClient";
+import { startMatchEngine } from "./matchmaking/matchEngine";
 import { createMatchRouter } from "./routes/matchRoutes";
 import { Notifier } from "./matchmaking/notifier";
 import { createUserRouter } from "./routes/userRoutes";
-const cors = require("cors");
 
 // ---------- EXPRESS SETUP ----------
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 
 // ---------- DATABASE ----------
@@ -27,25 +35,27 @@ redis.ping().then((res) => console.log("Redis:", res));
 
 // ---------- SOCKET.IO ----------
 const server = http.createServer(app);
+
 const io = new SocketIOServer(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  },
 });
 
-// Maps userId → socketId
+// Track connected users
 const userSockets = new Map<string, string>();
 
-// everytime a client connects to socket.io server 
-// we register their userId with the socketId
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // Client must send: socket.emit("register", userId)
   socket.on("register", (userId: string) => {
     console.log("Registered user:", userId);
     userSockets.set(userId, socket.id);
   });
 
-  // Clean up on disconnect
   socket.on("disconnect", () => {
     for (const [userId, sockId] of userSockets.entries()) {
       if (sockId === socket.id) {
@@ -56,7 +66,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ---------- NOTIFIER IMPLEMENTATION ----------
+// ---------- NOTIFIER ----------
 const notifier: Notifier = {
   async notifyUser(userId, event, payload) {
     const socketId = userSockets.get(userId);
@@ -66,18 +76,19 @@ const notifier: Notifier = {
 };
 
 // ---------- MATCH ENGINE ----------
-startMatchEngine(notifier, 1000); // run every 1s
+startMatchEngine(notifier, 1000);
 
-// ---------- EXPRESS ROUTES ----------
+// ---------- ROUTES ----------
 app.use("/match", createMatchRouter(notifier));
 app.use("/user", createUserRouter());
-
 
 app.get("/", (req, res) => {
   res.send("Matchmaking API is running");
 });
 
 // ---------- START SERVER ----------
-server.listen(process.env.PORT, () => {
-  console.log(`Server running on ${process.env.PORT}`);
-}); 
+const PORT = process.env.PORT || 4000;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
